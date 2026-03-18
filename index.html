@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FPS Survival Shooter</title>
+<title>Baseball Game</title>
 <style>
-  body { margin: 0; overflow: hidden; background: black; }
+  body { margin: 0; overflow: hidden; background: linear-gradient(#4ec0ff,#1e7f2d); }
   canvas { display: block; }
   #ui {
     position: absolute;
@@ -13,23 +13,25 @@
     left: 10px;
     color: white;
     font-family: sans-serif;
+    font-size: 18px;
   }
-  #crosshair {
+  #btn {
     position: absolute;
-    top: 50%;
+    bottom: 40px;
     left: 50%;
-    width: 20px;
-    height: 20px;
-    margin-left: -10px;
-    margin-top: -10px;
-    border: 2px solid white;
-    border-radius: 50%;
+    transform: translateX(-50%);
+    padding: 20px 40px;
+    font-size: 20px;
+    background: #ff4444;
+    color: white;
+    border: none;
+    border-radius: 10px;
   }
 </style>
 </head>
 <body>
-<div id="ui">HP: <span id="hp">100</span></div>
-<div id="crosshair"></div>
+<div id="ui">Score: <span id="score">0</span></div>
+<button id="btn">打つ！</button>
 <canvas id="game"></canvas>
 
 <script>
@@ -38,100 +40,56 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let player = { x: 0, y: 0, angle: 0, hp: 100 };
-let bullets = [];
-let enemies = [];
+let ball = { x: canvas.width/2, y: 0, vy: 0, active: false };
+let score = 0;
 
-let keys = {};
-document.addEventListener("keydown", e => keys[e.key] = true);
-document.addEventListener("keyup", e => keys[e.key] = false);
-
-canvas.addEventListener("mousemove", e => {
-  player.angle = Math.atan2(e.clientY - canvas.height/2, e.clientX - canvas.width/2);
-});
-
-canvas.addEventListener("click", shoot);
-
-function shoot() {
-  bullets.push({
-    x: player.x,
-    y: player.y,
-    dx: Math.cos(player.angle) * 10,
-    dy: Math.sin(player.angle) * 10
-  });
+function pitch() {
+  ball.x = canvas.width/2 + (Math.random()-0.5)*200;
+  ball.y = 0;
+  ball.vy = 5 + Math.random()*3;
+  ball.active = true;
 }
 
-function spawnEnemy() {
-  enemies.push({
-    x: player.x + (Math.random() - 0.5) * 800,
-    y: player.y + (Math.random() - 0.5) * 800,
-    size: 20
-  });
+setInterval(pitch, 2000);
+
+document.getElementById("btn").addEventListener("click", swing);
+canvas.addEventListener("touchstart", swing);
+
+function swing() {
+  if(!ball.active) return;
+
+  // タイミング判定
+  let hitZone = canvas.height - 150;
+  if(Math.abs(ball.y - hitZone) < 40) {
+    score++;
+    document.getElementById("score").textContent = score;
+    ball.active = false;
+  }
 }
-setInterval(spawnEnemy, 1500);
 
 function update() {
-  if(keys["w"]) {
-    player.x += Math.cos(player.angle) * 3;
-    player.y += Math.sin(player.angle) * 3;
-  }
-  if(keys["s"]) {
-    player.x -= Math.cos(player.angle) * 3;
-    player.y -= Math.sin(player.angle) * 3;
-  }
-  if(keys["a"]) {
-    player.x += Math.cos(player.angle - Math.PI/2) * 3;
-    player.y += Math.sin(player.angle - Math.PI/2) * 3;
-  }
-  if(keys["d"]) {
-    player.x += Math.cos(player.angle + Math.PI/2) * 3;
-    player.y += Math.sin(player.angle + Math.PI/2) * 3;
-  }
-
-  bullets.forEach(b => {
-    b.x += b.dx;
-    b.y += b.dy;
-  });
-
-  enemies.forEach(e => {
-    let angle = Math.atan2(player.y - e.y, player.x - e.x);
-    e.x += Math.cos(angle) * 1.5;
-    e.y += Math.sin(angle) * 1.5;
-
-    if(Math.hypot(player.x - e.x, player.y - e.y) < 20) {
-      player.hp -= 0.5;
+  if(ball.active) {
+    ball.y += ball.vy;
+    if(ball.y > canvas.height) {
+      ball.active = false;
     }
-  });
-
-  bullets.forEach((b, bi) => {
-    enemies.forEach((e, ei) => {
-      if(Math.hypot(b.x - e.x, b.y - e.y) < 20) {
-        enemies.splice(ei,1);
-        bullets.splice(bi,1);
-      }
-    });
-  });
-
-  document.getElementById("hp").textContent = Math.floor(player.hp);
+  }
 }
 
 function draw() {
-  ctx.fillStyle = "#111";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // カメラ中心（プレイヤー視点）
-  let camX = player.x - canvas.width/2;
-  let camY = player.y - canvas.height/2;
+  // バット位置（目安）
+  ctx.fillStyle = "white";
+  ctx.fillRect(canvas.width/2 - 50, canvas.height - 150, 100, 10);
 
-  ctx.fillStyle = "red";
-  enemies.forEach(e => {
-    ctx.fillRect(e.x - camX - 10, e.y - camY - 10, 20, 20);
-  });
-
-  ctx.fillStyle = "yellow";
-  bullets.forEach(b => {
-    ctx.fillRect(b.x - camX, b.y - camY, 5, 5);
-  });
+  // ボール
+  if(ball.active) {
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, 10, 0, Math.PI*2);
+    ctx.fillStyle = "white";
+    ctx.fill();
+  }
 }
 
 function loop() {
