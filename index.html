@@ -3,26 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>超進化 野球ゲーム</title>
+<title>野球ゲーム（守備強化）</title>
 <style>
   body { margin: 0; overflow: hidden; background: linear-gradient(#87ceeb,#2e8b57); }
   canvas { display: block; }
-  #btn {
+  #msg {
     position: absolute;
-    bottom: 40px;
+    top: 50%;
     left: 50%;
-    transform: translateX(-50%);
-    padding: 20px 40px;
-    font-size: 20px;
-    background: #ff4444;
+    transform: translate(-50%,-50%);
     color: white;
-    border: none;
-    border-radius: 10px;
+    font-size: 40px;
+    font-family: sans-serif;
   }
 </style>
 </head>
 <body>
-<button id="btn">スイング！</button>
+<div id="msg"></div>
 <canvas id="game"></canvas>
 
 <script>
@@ -33,10 +30,13 @@ canvas.height = window.innerHeight;
 
 let ball = { x: 0, y: 0, z: 1, speed: 0.02, active: false };
 let hitBall = null;
-let swingAnim = 0;
-let shake = 0;
-let touchStartX = 0;
-let swipePower = 0;
+let message = "";
+
+let fielders = [
+  {x: canvas.width/2 - 100, y: canvas.height/2},
+  {x: canvas.width/2, y: canvas.height/2 - 50},
+  {x: canvas.width/2 + 100, y: canvas.height/2}
+];
 
 function pitch() {
   ball.x = canvas.width/2 + (Math.random()-0.5)*200;
@@ -44,42 +44,28 @@ function pitch() {
   ball.z = 1;
   ball.speed = 0.02 + Math.random()*0.02;
   ball.active = true;
+  message = "";
 }
 setInterval(pitch, 2500);
 
-canvas.addEventListener("touchstart", e => {
-  touchStartX = e.touches[0].clientX;
-});
-
-canvas.addEventListener("touchend", e => {
-  let dx = e.changedTouches[0].clientX - touchStartX;
-  swipePower = dx / 50;
-  swing();
-});
+canvas.addEventListener("click", swing);
+canvas.addEventListener("touchstart", swing);
 
 function swing() {
   if(!ball.active) return;
 
-  swingAnim = 10;
-  shake = 10;
-
   if(ball.z < 0.25) {
-    let direction = (ball.x - canvas.width/2) / 100 + swipePower;
-    let power = (0.3 - ball.z) * 20 + Math.abs(swipePower)*2;
-
     hitBall = {
       x: canvas.width/2,
-      y: canvas.height - 120,
-      vx: direction * 5,
-      vy: -power,
+      y: canvas.height - 100,
+      vx: (ball.x - canvas.width/2)/20,
+      vy: -8,
       gravity: 0.3
     };
   }
 
   ball.active = false;
 }
-
-document.getElementById("btn").onclick = swing;
 
 function update() {
   if(ball.active) {
@@ -92,43 +78,31 @@ function update() {
     hitBall.y += hitBall.vy;
     hitBall.vy += hitBall.gravity;
 
-    // 守備キャッチ
-    let fielderX = canvas.width/2;
-    let fielderY = canvas.height/2;
-    if(Math.hypot(hitBall.x - fielderX, hitBall.y - fielderY) < 30) {
-      hitBall = null; // アウト
-    }
+    // 守備が追いかける
+    fielders.forEach(f => {
+      let angle = Math.atan2(hitBall.y - f.y, hitBall.x - f.x);
+      f.x += Math.cos(angle) * 1.5;
+      f.y += Math.sin(angle) * 1.5;
 
+      // キャッチ判定
+      if(Math.hypot(hitBall.x - f.x, hitBall.y - f.y) < 20) {
+        hitBall = null;
+        message = "アウト！";
+      }
+    });
+
+    // 地面に落ちたらヒット
     if(hitBall && hitBall.y > canvas.height) {
       hitBall = null;
+      message = "ヒット！";
     }
   }
 
-  if(swingAnim > 0) swingAnim--;
-  if(shake > 0) shake--;
-}
-
-function drawBat() {
-  ctx.save();
-  ctx.translate(canvas.width/2 + 100, canvas.height - 100);
-
-  let angle = -0.5;
-  if(swingAnim > 0) {
-    angle = -0.5 + (10 - swingAnim) * 0.2;
-  }
-
-  ctx.rotate(angle);
-  ctx.fillStyle = "#c69c6d";
-  ctx.fillRect(-10, -80, 20, 160);
-  ctx.restore();
+  document.getElementById("msg").textContent = message;
 }
 
 function draw() {
-  let offsetX = (Math.random()-0.5)*shake*2;
-  let offsetY = (Math.random()-0.5)*shake*2;
-
-  ctx.setTransform(1,0,0,1,offsetX,offsetY);
-  ctx.clearRect(-offsetX,-offsetY,canvas.width,canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
   // グラウンド
   ctx.fillStyle = "#2e8b57";
@@ -141,9 +115,11 @@ function draw() {
 
   // 守備
   ctx.fillStyle = "blue";
-  ctx.beginPath();
-  ctx.arc(canvas.width/2, canvas.height/2, 15, 0, Math.PI*2);
-  ctx.fill();
+  fielders.forEach(f => {
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, 10, 0, Math.PI*2);
+    ctx.fill();
+  });
 
   // 投球
   if(ball.active) {
@@ -161,8 +137,6 @@ function draw() {
     ctx.fillStyle = "white";
     ctx.fill();
   }
-
-  drawBat();
 }
 
 function loop() {
@@ -174,3 +148,4 @@ loop();
 </script>
 </body>
 </html>
+
