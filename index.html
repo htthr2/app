@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Baseball Game</title>
+<title>3D風 野球対戦ゲーム</title>
 <style>
-  body { margin: 0; overflow: hidden; background: linear-gradient(#4ec0ff,#1e7f2d); }
+  body { margin: 0; overflow: hidden; background: linear-gradient(#87ceeb,#2e8b57); }
   canvas { display: block; }
   #ui {
     position: absolute;
@@ -30,7 +30,7 @@
 </style>
 </head>
 <body>
-<div id="ui">Score: <span id="score">0</span></div>
+<div id="ui">Player: <span id="p1">0</span> | CPU: <span id="p2">0</span></div>
 <button id="btn">打つ！</button>
 <canvas id="game"></canvas>
 
@@ -40,56 +40,78 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let ball = { x: canvas.width/2, y: 0, vy: 0, active: false };
-let score = 0;
+let ball = { x: 0, y: 0, z: 1, speed: 0.02, active: false };
+let p1Score = 0;
+let p2Score = 0;
+let turn = "player";
 
 function pitch() {
   ball.x = canvas.width/2 + (Math.random()-0.5)*200;
-  ball.y = 0;
-  ball.vy = 5 + Math.random()*3;
+  ball.y = canvas.height/2;
+  ball.z = 1;
+  ball.speed = 0.02 + Math.random()*0.02;
   ball.active = true;
 }
 
-setInterval(pitch, 2000);
-
-document.getElementById("btn").addEventListener("click", swing);
-canvas.addEventListener("touchstart", swing);
+setInterval(pitch, 2500);
 
 function swing() {
-  if(!ball.active) return;
+  if(!ball.active || turn !== "player") return;
 
-  // タイミング判定
-  let hitZone = canvas.height - 150;
-  if(Math.abs(ball.y - hitZone) < 40) {
-    score++;
-    document.getElementById("score").textContent = score;
-    ball.active = false;
+  if(ball.z < 0.2) {
+    p1Score++;
   }
+  ball.active = false;
+  turn = "cpu";
+  setTimeout(cpuTurn, 1000);
+}
+
+document.getElementById("btn").onclick = swing;
+canvas.addEventListener("touchstart", swing);
+
+function cpuTurn() {
+  if(Math.random() > 0.5) {
+    p2Score++;
+  }
+  turn = "player";
 }
 
 function update() {
   if(ball.active) {
-    ball.y += ball.vy;
-    if(ball.y > canvas.height) {
+    ball.z -= ball.speed;
+    if(ball.z <= 0) {
       ball.active = false;
     }
   }
+
+  document.getElementById("p1").textContent = p1Score;
+  document.getElementById("p2").textContent = p2Score;
 }
 
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // バット位置（目安）
-  ctx.fillStyle = "white";
-  ctx.fillRect(canvas.width/2 - 50, canvas.height - 150, 100, 10);
+  // グラウンド（遠近感）
+  ctx.fillStyle = "#2e8b57";
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height);
+  ctx.lineTo(canvas.width, canvas.height);
+  ctx.lineTo(canvas.width/2, canvas.height/2);
+  ctx.closePath();
+  ctx.fill();
 
-  // ボール
+  // ボール（3D風：近づくと大きくなる）
   if(ball.active) {
+    let size = 10 / ball.z;
     ctx.beginPath();
-    ctx.arc(ball.x, ball.y, 10, 0, Math.PI*2);
+    ctx.arc(ball.x, ball.y + (1-ball.z)*300, size, 0, Math.PI*2);
     ctx.fillStyle = "white";
     ctx.fill();
   }
+
+  // バット位置
+  ctx.fillStyle = "white";
+  ctx.fillRect(canvas.width/2 - 60, canvas.height - 120, 120, 10);
 }
 
 function loop() {
@@ -101,4 +123,3 @@ loop();
 </script>
 </body>
 </html>
-
