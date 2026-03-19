@@ -3,23 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>野球ゲーム（守備強化）</title>
+<title>3D風 ランゲーム（FPS視点）</title>
 <style>
-  body { margin: 0; overflow: hidden; background: linear-gradient(#87ceeb,#2e8b57); }
+  body { margin: 0; overflow: hidden; background: #000; }
   canvas { display: block; }
-  #msg {
+  #ui {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%,-50%);
+    top: 10px;
+    left: 10px;
     color: white;
-    font-size: 40px;
     font-family: sans-serif;
   }
 </style>
 </head>
 <body>
-<div id="msg"></div>
+<div id="ui">距離: <span id="dist">0</span></div>
 <canvas id="game"></canvas>
 
 <script>
@@ -28,114 +26,101 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let ball = { x: 0, y: 0, z: 1, speed: 0.02, active: false };
-let hitBall = null;
-let message = "";
+let player = { x: 0, lane: 1 }; // 0=左,1=中央,2=右
+let obstacles = [];
+let speed = 6;
+let distance = 0;
+let gameOver = false;
 
-let fielders = [
-  {x: canvas.width/2 - 100, y: canvas.height/2},
-  {x: canvas.width/2, y: canvas.height/2 - 50},
-  {x: canvas.width/2 + 100, y: canvas.height/2}
-];
+// 操作（スマホ対応）
+canvas.addEventListener("touchstart", e => {
+  let x = e.touches[0].clientX;
+  if(x < canvas.width/2) player.lane--;
+  else player.lane++;
+  player.lane = Math.max(0, Math.min(2, player.lane));
+});
 
-function pitch() {
-  ball.x = canvas.width/2 + (Math.random()-0.5)*200;
-  ball.y = canvas.height/3;
-  ball.z = 1;
-  ball.speed = 0.02 + Math.random()*0.02;
-  ball.active = true;
-  message = "";
+// PC用
+window.addEventListener("keydown", e => {
+  if(e.key === "ArrowLeft") player.lane--;
+  if(e.key === "ArrowRight") player.lane++;
+  player.lane = Math.max(0, Math.min(2, player.lane));
+});
+
+function spawnObstacle() {
+  obstacles.push({
+    lane: Math.floor(Math.random()*3),
+    z: 1
+  });
 }
-setInterval(pitch, 2500);
-
-canvas.addEventListener("click", swing);
-canvas.addEventListener("touchstart", swing);
-
-function swing() {
-  if(!ball.active) return;
-
-  if(ball.z < 0.25) {
-    hitBall = {
-      x: canvas.width/2,
-      y: canvas.height - 100,
-      vx: (ball.x - canvas.width/2)/20,
-      vy: -8,
-      gravity: 0.3
-    };
-  }
-
-  ball.active = false;
-}
+setInterval(spawnObstacle, 1200);
 
 function update() {
-  if(ball.active) {
-    ball.z -= ball.speed;
-    if(ball.z <= 0) ball.active = false;
-  }
+  if(gameOver) return;
 
-  if(hitBall) {
-    hitBall.x += hitBall.vx;
-    hitBall.y += hitBall.vy;
-    hitBall.vy += hitBall.gravity;
+  distance += 1;
 
-    // 守備が追いかける
-    fielders.forEach(f => {
-      let angle = Math.atan2(hitBall.y - f.y, hitBall.x - f.x);
-      f.x += Math.cos(angle) * 1.5;
-      f.y += Math.sin(angle) * 1.5;
+  obstacles.forEach(o => {
+    o.z -= 0.02 * speed/6;
 
-      // キャッチ判定
-      if(Math.hypot(hitBall.x - f.x, hitBall.y - f.y) < 20) {
-        hitBall = null;
-        message = "アウト！";
-      }
-    });
-
-    // 地面に落ちたらヒット
-    if(hitBall && hitBall.y > canvas.height) {
-      hitBall = null;
-      message = "ヒット！";
+    // 衝突判定
+    if(o.z < 0.1 && o.lane === player.lane) {
+      gameOver = true;
     }
-  }
+  });
 
-  document.getElementById("msg").textContent = message;
+  obstacles = obstacles.filter(o => o.z > 0);
+
+  document.getElementById("dist").textContent = distance;
+}
+
+function drawRoad() {
+  ctx.fillStyle = "#222";
+  ctx.beginPath();
+  ctx.moveTo(canvas.width*0.3, canvas.height);
+  ctx.lineTo(canvas.width*0.7, canvas.height);
+  ctx.lineTo(canvas.width*0.55, canvas.height*0.4);
+  ctx.lineTo(canvas.width*0.45, canvas.height*0.4);
+  ctx.closePath();
+  ctx.fill();
+
+  // レーン線
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 2;
+  for(let i=1;i<=2;i++){
+    let t = i/3;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width*(0.3+t*0.4), canvas.height);
+    ctx.lineTo(canvas.width*(0.45+t*0.1), canvas.height*0.4);
+    ctx.stroke();
+  }
+}
+
+function laneToX(lane, z) {
+  let base = canvas.width/2;
+  let offset = (lane-1)*100*(1/z);
+  return base + offset;
 }
 
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // グラウンド
-  ctx.fillStyle = "#2e8b57";
-  ctx.beginPath();
-  ctx.moveTo(canvas.width/2, canvas.height/2);
-  ctx.lineTo(canvas.width/2 + 200, canvas.height);
-  ctx.lineTo(canvas.width/2 - 200, canvas.height);
-  ctx.closePath();
-  ctx.fill();
+  drawRoad();
 
-  // 守備
-  ctx.fillStyle = "blue";
-  fielders.forEach(f => {
-    ctx.beginPath();
-    ctx.arc(f.x, f.y, 10, 0, Math.PI*2);
-    ctx.fill();
+  // 障害物（3D風）
+  obstacles.forEach(o => {
+    let size = 40 / o.z;
+    let x = laneToX(o.lane, o.z);
+    let y = canvas.height*0.7 + (1-o.z)*200;
+
+    ctx.fillStyle = "red";
+    ctx.fillRect(x-size/2, y-size/2, size, size);
   });
 
-  // 投球
-  if(ball.active) {
-    let size = 10 / ball.z;
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y + (1-ball.z)*300, size, 0, Math.PI*2);
+  if(gameOver) {
     ctx.fillStyle = "white";
-    ctx.fill();
-  }
-
-  // 打球
-  if(hitBall) {
-    ctx.beginPath();
-    ctx.arc(hitBall.x, hitBall.y, 8, 0, Math.PI*2);
-    ctx.fillStyle = "white";
-    ctx.fill();
+    ctx.font = "40px sans-serif";
+    ctx.fillText("GAME OVER", canvas.width/2 - 120, canvas.height/2);
   }
 }
 
